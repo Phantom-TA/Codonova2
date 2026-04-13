@@ -29,61 +29,37 @@ class PlanningAgent:
 
     # ─── System Prompts ───────────────────────────────────────────────────────
 
-    FEATURE_EXTRACTION_SYSTEM = """You are an expert software architect and product manager.
-Given a software requirement, extract all major features and their acceptance criteria.
-
-Return a valid JSON object with this exact structure:
+    FEATURE_EXTRACTION_SYSTEM = """Extract features from a software requirement.
+Return JSON only:
 {
   "project_title": "string",
   "project_description": "string",
   "features": [
-    {
-      "id": "f1",
-      "title": "Feature name",
-      "description": "Detailed feature description",
-      "acceptance_criteria": ["criterion 1", "criterion 2"],
-      "priority": 1
-    }
+    {"id": "f1", "title": "Feature name", "description": "One sentence", "priority": 1}
   ]
 }
+Rules: 2-5 features max. Be concise."""
 
-Rules:
-- Extract 3-8 meaningful features from the requirement
-- Each feature must have 2-5 concrete acceptance criteria
-- Priority 1 = highest priority"""
-
-    TASK_DECOMPOSITION_SYSTEM = """You are a senior software engineer and technical lead.
-Given a list of software features, break each into concrete development tasks and subtasks.
-
-Return a valid JSON object with this exact structure:
+    TASK_DECOMPOSITION_SYSTEM = """Break a software feature into development tasks.
+Return JSON only:
 {
   "tasks": [
     {
       "id": "t1",
       "feature_id": "f1",
       "title": "Task title",
-      "description": "What needs to be done",
+      "description": "One sentence describing what to build",
       "type": "CODE",
       "priority": 1,
-      "depends_on": [],
-      "subtasks": [
-        {
-          "id": "st1",
-          "title": "Subtask title",
-          "description": "Specific action"
-        }
-      ]
+      "depends_on": []
     }
   ]
 }
-
 Rules:
-- Task type must be: CODE, TEST, or DEBUG
-- For each CODE task, create a corresponding TEST task
-- depends_on contains task id strings (e.g., ["t1", "t2"])
-- TEST tasks always depend on their corresponding CODE task
-- Priority 1 = must be done first
-- Be specific: each task should correspond to one file or one function group"""
+- type must be CODE or TEST
+- 3-6 tasks per feature max
+- Each task = one file. No subtasks.
+- depends_on: list task ids this needs first"""
 
     # ─── Core Methods ─────────────────────────────────────────────────────────
 
@@ -148,27 +124,47 @@ Rules:
         return data
 
     def _decompose_tasks(self, requirement: str, features_data: dict) -> dict:
-        """Call 2: Break features into tasks and subtasks with dependencies."""
-        logger.info("Call 2: Decomposing features into tasks...")
+        """Call 2: Break features into tasks individually to avoid large JSON truncation."""
+        logger.info("Call 2: Decomposing features into tasks (modular)...")
 
-        features_json = json.dumps(features_data.get("features", []), indent=2)
+        all_tasks = []
+        features = features_data.get("features", [])
 
-        messages = [
-            {"role": "system", "content": self.TASK_DECOMPOSITION_SYSTEM},
-            {
-                "role": "user",
-                "content": (
-                    f"Original Requirement:\n{requirement}\n\n"
-                    f"Extracted Features:\n{features_json}\n\n"
-                    "Now decompose these into specific CODE, TEST, and DEBUG tasks with dependencies."
-                ),
-            },
-        ]
+        for i, feature in enumerate(features):
+            logger.info(f"Decomposing Feature {i+1}/{len(features)}: {feature.get('title')}")
+            
+            messages = [
+                {"role": "system", "content": self.TASK_DECOMPOSITION_SYSTEM},
+                {
+                    "role": "user",
+                    "content": (
+                        f"Feature: {feature.get('title')}\n"
+                        f"Description: {feature.get('description')}\n\n"
+                        "Break this into 3-6 tasks (CODE type only, no TEST tasks). "
+                        "Each task = one file. Be brief."
+                    ),
+                },
+            ]
 
-        raw = llm_call("reasoning", messages, json_mode=True)
-        data = parse_json_response(raw)
-        logger.info(f"Decomposed into {len(data.get('tasks', []))} tasks.")
-        return data
+            raw = llm_call("reasoning", messages, json_mode=True)
+            try:
+                data = parse_json_response(raw)
+                feature_tasks = data.get("tasks", [])
+                
+                # Ensure each task is correctly linked to the feature ID
+                for task in feature_tasks:
+                    if not task.get("feature_id"):
+                        task["feature_id"] = feature.get("id")
+                
+                all_tasks.extend(feature_tasks)
+            except Exception as e:
+                logger.error(f"Failed to decompose feature {feature.get('id')}: {e}")
+                # Log the raw response to help debugging
+                logger.debug(f"Raw response: {raw[:500]}...")
+                continue
+
+        logger.info(f"Total decomposition results: {len(all_tasks)} tasks.")
+        return {"tasks": all_tasks}
 
     def _store_in_graph(
         self, requirement: str, features_data: dict, tasks_data: dict
@@ -223,6 +219,7 @@ Rules:
             create_node("Task", {
                 "id": task_id,
                 "logical_id": logical_id,
+                "project_id": project_id,
                 "title": task.get("title", ""),
                 "description": task.get("description", ""),
                 "type": task.get("type", "CODE"),

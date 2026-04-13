@@ -2,18 +2,16 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System dependencies
+# System dependencies + Node.js 20 LTS (for npx jest test execution)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
+    gnupg \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PyTorch CPU-only FIRST (smaller ~200MB vs full ~2GB GPU version)
-RUN pip install --no-cache-dir \
-    torch==2.3.0+cpu \
-    --extra-index-url https://download.pytorch.org/whl/cpu
-
-# Install remaining Python dependencies
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

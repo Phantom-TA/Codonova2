@@ -61,23 +61,43 @@ def get_call_log() -> list[dict]:
 # ─────────────────────────────────────────
 # Client Factory
 # ─────────────────────────────────────────
-def get_client(agent_type: str) -> tuple[OpenAI, str]:
+gemini_key_index = 0
+groq_key_index = 0
+
+def get_client(agent_type: str, key_offset: int = 0) -> tuple[OpenAI, str]:
     """
-    Returns (client, model_name) based on agent type.
+    Returns (client, model_name) with round-robin key selection for rate limit failover.
     agent_type: "reasoning" | "fast"
     """
-    if agent_type == "reasoning":
+    provider_env = "REASONING_LLM_PROVIDER" if agent_type == "reasoning" else "FAST_LLM_PROVIDER"
+    provider = os.getenv(provider_env, "gemini").lower()
+    
+    if provider == "gemini":
+        keys_str = os.getenv("GEMINI_API_KEY", "")
+        keys = [k.strip(' "\'') for k in keys_str.split(",") if k.strip(' "\'')]
+        if not keys:
+            keys = [""]
+        global gemini_key_index
+        active_key = keys[(gemini_key_index + key_offset) % len(keys)]
+        
         return (
             OpenAI(
-                api_key=os.getenv("GEMINI_API_KEY"),
+                api_key=active_key,
                 base_url=os.getenv("GEMINI_BASE_URL"),
             ),
-            os.getenv("GEMINI_MODEL", "gemini-1.5-flash-latest"),
+            os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         )
     else:
+        keys_str = os.getenv("GROQ_API_KEY", "")
+        keys = [k.strip(' "\'') for k in keys_str.split(",") if k.strip(' "\'')]
+        if not keys:
+            keys = [""]
+        global groq_key_index
+        active_key = keys[(groq_key_index + key_offset) % len(keys)]
+        
         return (
             OpenAI(
-                api_key=os.getenv("GROQ_API_KEY"),
+                api_key=active_key,
                 base_url=os.getenv("GROQ_BASE_URL"),
             ),
             os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
@@ -91,7 +111,7 @@ def _get_fallback_client() -> tuple[OpenAI, str]:
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url=os.getenv("OPENROUTER_BASE_URL"),
         ),
-        os.getenv("OPENROUTER_MODEL", "meta-llama/llama-4-scout:free"),
+        os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.2-3b-instruct:free"),
     )
 
 
@@ -102,36 +122,42 @@ def llm_call(
     agent_type: str,
     messages: list[dict],
     json_mode: bool = True,
-    temperature: float = 0.7,
-    max_tokens: int = 32768,
+    temperature: float = 0.3,
+    max_tokens: int = 4096,
 ) -> str:
     """
     Unified LLM call with automatic fallback to OpenRouter if rate limited.
     Retries up to 3 times with exponential backoff.
     """
-    client, model = get_client(agent_type)
-
     kwargs: dict = {
-        "model": model,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
     }
     
-    # We remove response_format for Gemini as it causes 400s on their OpenAI proxy
-    # For others (Groq, OpenRouter), we keep it if requested
-    is_gemini = "google" in str(client.base_url).lower() or "gemini" in model.lower()
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
 
     start_time = time.time()
+    key_offset = 0
 
     for attempt in range(5):
+        client, model = get_client(agent_type, key_offset)
+        kwargs["model"] = model
+
         try:
             response = client.chat.completions.create(**kwargs)
             latency_ms = (time.time() - start_time) * 1000
             tokens = getattr(response.usage, "total_tokens", None)
             _log_call(agent_type, model, latency_ms, tokens, success=True)
+            
+            # If we offset successfully, update the global index implicitly for future calls
+            global gemini_key_index, groq_key_index
+            if agent_type == "reasoning" and key_offset > 0:
+                gemini_key_index += key_offset
+            elif agent_type == "fast" and key_offset > 0:
+                groq_key_index += key_offset
+                
             return response.choices[0].message.content
 
         except Exception as e:
@@ -141,21 +167,21 @@ def llm_call(
                 logger.error(f"LLM API Error Body: {error_details}")
 
             error_str = str(e).lower()
-            is_rate_limit = "rate" in error_str or "429" in error_str or "quota" in error_str
+            is_rate_limit = "rate" in error_str or "429" in error_str or "quota" in error_str or "resource exhausted" in error_str
 
             if is_rate_limit:
-                wait_time = 30
                 logger.warning(
-                    f"Rate limit hit for {model} (attempt {attempt + 1}/5). "
-                    f"Waiting {wait_time}s..."
+                    f"Rate limit / Quota hit for {model} (attempt {attempt + 1}/5). "
+                    f"Rotating to next API key..."
                 )
+                key_offset += 1
+                time.sleep(1) # Small pause before trying next key
 
                 if attempt < 4:
-                    time.sleep(wait_time)
                     continue
 
                 # After 5 attempts, fall back to OpenRouter
-                logger.warning("All retries exhausted. Falling back to OpenRouter...")
+                logger.warning("All provided keys exhausted. Falling back to OpenRouter...")
                 fallback_client, fallback_model = _get_fallback_client()
                 kwargs["model"] = fallback_model
                 # OpenRouter usually supports json_object
@@ -202,14 +228,61 @@ def parse_json_response(raw: str) -> dict:
     start = content.find('{')
     end = content.rfind('}')
 
-    if start == -1 or end == -1:
-        logger.error(f"No JSON object found in response: {raw[:500]}")
-        raise ValueError("Failed to find JSON object in LLM response.")
+    if start == -1:
+        logger.error(f"No JSON object start found in response: {raw[:500]}")
+        raise ValueError("Failed to find JSON object start in LLM response.")
 
-    json_str = content[start:end+1]
+    # If no closing brace is found, it's likely truncated. Try to fix it.
+    if end == -1 or end < start:
+        logger.warning("Detected truncated JSON (missing closing brace). Attempting to fix.")
+        
+        # Check if we are inside a string. Count unescaped double quotes.
+        # This is a heuristic: if we have an odd number of quotes, we are inside a string.
+        json_fragment = content[start:]
+        quote_count = 0
+        escaped = False
+        for char in json_fragment:
+             if char == '\\' and not escaped:
+                 escaped = True
+             elif char == '"' and not escaped:
+                 quote_count += 1
+                 escaped = False
+             else:
+                 escaped = False
+        
+        if quote_count % 2 != 0:
+             # We are inside a string value (likely the 'code' field).
+             # Close the string and then the object.
+             json_str = json_fragment + '"\n}'
+        elif "[" in json_fragment and "]" not in json_fragment[json_fragment.rfind("["):]:
+             # We are inside a list (likely 'tasks' or 'features').
+             # Close the list and then the object.
+             json_str = json_fragment + ']\n}'
+        else:
+             json_str = json_fragment + "\n}"
+    else:
+        json_str = content[start:end+1]
 
     try:
-        return json.loads(json_str)
+        return json.loads(json_str, strict=False)
     except json.JSONDecodeError as e:
-        logger.error(f"JSON parse failed: {e}\nRaw snippet: {json_str[:500]}")
+        # If it still fails, try closing any open brackets/braces
+        error_msg = str(e).lower()
+        if any(fix in error_msg for fix in ["expecting property name", "extra data", "delimiter", "expecting object", "double quotes"]):
+             try:
+                 # Attempt to strip a trailing comma and close
+                 return json.loads(json_str.strip().rstrip(',').rstrip() + "}", strict=False)
+             except: pass
+             
+             try:
+                 # Attempt to close a list and then the object
+                 return json.loads(json_str.strip().rstrip(',').rstrip() + "]}", strict=False)
+             except: pass
+             
+             try:
+                 # Attempt to close a string and then the object (most common code truncation)
+                 return json.loads(json_str.strip().rstrip(',').rstrip() + '"\n}', strict=False)
+             except: pass
+        
+        logger.error(f"JSON parse failed after repair attempt: {e}\nRaw snippet: {json_str[:500]}")
         raise ValueError(f"Failed to parse LLM JSON response: {e}") from e

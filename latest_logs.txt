@@ -1,0 +1,195 @@
+﻿codonova_frontend  | /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
+codonova_frontend  | /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+codonova_frontend  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+codonova_frontend  | 10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+codonova_frontend  | 10-listen-on-ipv6-by-default.sh: info: /etc/nginx/conf.d/default.conf differs from the packaged version
+codonova_frontend  | /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+codonova_frontend  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+codonova_frontend  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
+codonova_frontend  | /docker-entrypoint.sh: Configuration complete; ready for start up
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: using the "epoll" event method
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: nginx/1.29.7
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: built by gcc 15.2.0 (Alpine 15.2.0) 
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: OS: Linux 6.6.87.2-microsoft-standard-WSL2
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: getrlimit(RLIMIT_NOFILE): 1048576:1048576
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker processes
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 30
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 31
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 32
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 33
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 34
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 35
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 36
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 37
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 38
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 39
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 40
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 41
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 42
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 43
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 44
+codonova_frontend  | 2026/04/04 18:41:15 [notice] 1#1: start worker process 45
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:41:20 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:41:29 +0000] "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 188 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:41:29 +0000] "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 1855 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:41:29 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:41:50 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:42:04 +0000] "GET /assets/index-CEnHucSS.js HTTP/1.1" 304 0 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:42:04 +0000] "GET /assets/index-DId-ZQRF.css HTTP/1.1" 304 0 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:42:05 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:42:20 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:42:50 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:43:20 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:43:50 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:44:20 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "POST /api/plan HTTP/1.1" 500 204 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 1855 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 188 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 188 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_backend   | 2026-04-04 18:43:19,722 [WARNING] llm_client: Rate limit hit for gemini-1.5-flash (attempt 3/5). Waiting 30s...
+codonova_backend   | 2026-04-04 18:43:50,004 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 404 Not Found"
+codonova_backend   | 2026-04-04 18:43:50,006 [ERROR] llm_client: LLM API Error Body: [{'error': {'code': 404, 'message': 'models/gemini-1.5-flash is not found for API version v1main, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.', 'status': 'NOT_FOUND'}}]
+codonova_backend   | 2026-04-04 18:43:50,006 [WARNING] llm_client: Rate limit hit for gemini-1.5-flash (attempt 4/5). Waiting 30s...
+codonova_backend   | 2026-04-04 18:44:20,343 [INFO] httpx: HTTP Request: POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions "HTTP/1.1 404 Not Found"
+codonova_backend   | 2026-04-04 18:44:20,344 [ERROR] llm_client: LLM API Error Body: [{'error': {'code': 404, 'message': 'models/gemini-1.5-flash is not found for API version v1main, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.', 'status': 'NOT_FOUND'}}]
+codonova_backend   | 2026-04-04 18:44:20,344 [WARNING] llm_client: Rate limit hit for gemini-1.5-flash (attempt 5/5). Waiting 30s...
+codonova_backend   | 2026-04-04 18:44:20,345 [WARNING] llm_client: All retries exhausted. Falling back to OpenRouter...
+codonova_backend   | 2026-04-04 18:44:20,962 [INFO] httpx: HTTP Request: POST https://openrouter.ai/api/v1/chat/completions "HTTP/1.1 404 Not Found"
+codonova_backend   | 2026-04-04 18:44:20,965 [INFO] llm_client: LLM call | agent=reasoning model=google/gemma-2-9b-it:free latency=601ms tokens=None success=False
+codonova_backend   | 2026-04-04 18:44:20,965 [ERROR] main: Planning failed: All LLM providers failed. Last error: Error code: 404 - {'error': {'message': 'No endpoints found for google/gemma-2-9b-it:free.', 'code': 404}, 'user_id': 'user_3Bn3CLNAII3n0rDH6HohDxOwDmC'}
+codonova_backend   | Traceback (most recent call last):
+codonova_backend   |   File "/app/llm_client.py", line 167, in llm_call
+codonova_backend   |     fb_response = fallback_client.chat.completions.create(**kwargs)
+codonova_backend   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+codonova_backend   |   File "/usr/local/lib/python3.11/site-packages/openai/_utils/_utils.py", line 277, in wrapper
+codonova_backend   |     return func(*args, **kwargs)
+codonova_backend   |            ^^^^^^^^^^^^^^^^^^^^^
+codonova_backend   |   File "/usr/local/lib/python3.11/site-packages/openai/resources/chat/completions.py", line 590, in create
+codonova_backend   |     return self._post(
+codonova_backend   |            ^^^^^^^^^^^
+codonova_backend   |   File "/usr/local/lib/python3.11/site-packages/openai/_base_client.py", line 1240, in post
+codonova_backend   |     return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))
+codonova_backend   |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+codonova_backend   |   File "/usr/local/lib/python3.11/site-packages/openai/_base_client.py", line 921, in request
+codonova_backend   |     return self._request(
+codonova_backend   |            ^^^^^^^^^^^^^^
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 1855 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:29 +0000] "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 1855 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:29 +0000] "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 188 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:29 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:35 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:44:50 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:44:51 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:45:06 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:45:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:45:21 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:45:29 +0000] "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 188 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:45:29 +0000] "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 1855 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:45:29 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:45:36 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:45:51 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:45:51 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:46:21 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:46:27 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:46:29 +0000] "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 1855 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:46:29 +0000] "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 188 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:46:29 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:46:36 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:46:51 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:46:51 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:47:06 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:47:21 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:47:21 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:47:29 +0000] "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 188 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:47:29 +0000] "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 1855 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:47:29 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:47:51 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 127.0.0.1 - - [04/Apr/2026:18:48:21 +0000] "GET / HTTP/1.1" 200 1089 "-" "curl/8.17.0" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:48:27 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:48:29 +0000] "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 1855 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:48:29 +0000] "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 188 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_frontend  | 172.19.0.1 - - [04/Apr/2026:18:48:29 +0000] "GET /api/projects HTTP/1.1" 200 455 "http://localhost:3000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" "-"
+codonova_backend   |   File "/usr/local/lib/python3.11/site-packages/openai/_base_client.py", line 1020, in _request
+codonova_backend   |     raise self._make_status_error_from_response(err.response) from None
+codonova_backend   | openai.NotFoundError: Error code: 404 - {'error': {'message': 'No endpoints found for google/gemma-2-9b-it:free.', 'code': 404}, 'user_id': 'user_3Bn3CLNAII3n0rDH6HohDxOwDmC'}
+codonova_backend   | 
+codonova_backend   | The above exception was the direct cause of the following exception:
+codonova_backend   | 
+codonova_backend   | Traceback (most recent call last):
+codonova_backend   |   File "/app/main.py", line 188, in create_plan
+codonova_backend   |     result = planner.run(request.requirement)
+codonova_backend   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+codonova_backend   |   File "/app/agents/planning_agent.py", line 106, in run
+codonova_backend   |     features_data = self._extract_features(requirement)
+codonova_backend   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+codonova_backend   |   File "/app/agents/planning_agent.py", line 145, in _extract_features
+codonova_backend   |     raw = llm_call("reasoning", messages, json_mode=True)
+codonova_backend   |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+codonova_backend   |   File "/app/llm_client.py", line 175, in llm_call
+codonova_backend   |     raise RuntimeError(f"All LLM providers failed. Last error: {fb_e}") from fb_e
+codonova_backend   | RuntimeError: All LLM providers failed. Last error: Error code: 404 - {'error': {'message': 'No endpoints found for google/gemma-2-9b-it:free.', 'code': 404}, 'user_id': 'user_3Bn3CLNAII3n0rDH6HohDxOwDmC'}
+codonova_backend   | INFO:     172.19.0.4:52206 - "POST /api/plan HTTP/1.1" 500 Internal Server Error
+codonova_backend   | INFO:     172.19.0.4:52220 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:60980 - "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:60982 - "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:43216 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:49550 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:55312 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:41996 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:54962 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53086 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53102 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53112 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53120 - "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53130 - "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53146 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53162 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53174 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53182 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:53190 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:48534 - "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:48548 - "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:48564 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:54306 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:38292 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:50428 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:47756 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:44566 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:48020 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:47576 - "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:47586 - "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:47590 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:51544 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:49530 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:46198 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:56654 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:32878 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:32882 - "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:32890 - "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:32904 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:49122 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:60916 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:39190 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:46126 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:40002 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:57642 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:58630 - "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:58634 - "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:58642 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:37788 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     127.0.0.1:34314 - "GET /health HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:37250 - "GET /api/projects HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:37254 - "GET /api/graph/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:37258 - "GET /api/status/d921b067-1710-4c50-8c57-8da5e213a0aa HTTP/1.1" 200 OK
+codonova_backend   | INFO:     172.19.0.4:37270 - "GET /api/projects HTTP/1.1" 200 OK

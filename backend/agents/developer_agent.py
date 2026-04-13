@@ -22,26 +22,20 @@ logger = logging.getLogger("developer_agent")
 
 GENERATED_CODE_DIR = Path(os.getenv("GENERATED_CODE_DIR", "./generated_code"))
 
-CODE_GEN_SYSTEM = """You are an expert software engineer who writes clean, production-ready Python code.
-
-Given a task description, feature context, and acceptance criteria, generate the complete implementation.
-
-You MUST return a valid JSON object with EXACTLY this structure:
+CODE_GEN_SYSTEM = """Generate clean Node.js/Express backend code or React components.
+Return JSON only:
 {
-  "filename": "path/to/module.py",
-  "code": "# Complete Python code here\\n...",
-  "explanation": "Brief explanation of the implementation approach",
-  "module_type": "function|class|endpoint|schema|test|utility",
-  "dependencies": ["list", "of", "imports"]
+  "filename": "path/to/module.js",
+  "code": "// complete code",
+  "explanation": "one sentence",
+  "module_type": "endpoint|schema|service|utility|component",
+  "dependencies": ["npm-pkg"]
 }
-
 Rules:
-- Write complete, runnable code (no placeholders like 'pass' or '# TODO')
-- Follow PEP 8 style guidelines
-- Include docstrings for all functions and classes
-- Handle edge cases and add appropriate error handling
-- The filename should reflect the module's purpose (e.g., 'api/routes/students.py')
-- Do NOT include markdown code blocks — the 'code' field is plain text"""
+- Complete runnable code, no TODOs
+- Use ES6+, handle errors
+- Paths: api/routes/*.js | services/*.js | models/*.js | ui/components/*.jsx
+- No markdown blocks in code field"""
 
 
 class DeveloperAgent:
@@ -171,22 +165,15 @@ class DeveloperAgent:
         self, task_node: dict, context: dict, similar_examples: list
     ) -> list[dict]:
         """Construct the full message list for the LLM."""
-        user_content = f"""Task: {task_node.get('title', '')}
-Description: {task_node.get('description', '')}
-
-Feature Context:
-  Feature: {context.get('feature_title', 'N/A')}
-  Feature Description: {context.get('feature_description', 'N/A')}
-  Acceptance Criteria:
-{chr(10).join(f'  - {c}' for c in context.get('acceptance_criteria', []))}
-
-Related Tasks in This Feature:
-{chr(10).join(f'  - {t}' for t in context.get('sibling_tasks', [])[:5])}"""
+        user_content = (
+            f"Task: {task_node.get('title', '')}\n"
+            f"Description: {task_node.get('description', '')}\n"
+            f"Feature: {context.get('feature_title', 'N/A')}"
+        )
 
         if similar_examples:
-            user_content += "\n\nSimilar past solutions for reference:"
-            for ex in similar_examples:
-                user_content += f"\n\n--- Example (Task: {ex['task']}) ---\n{ex['code'][:500]}..."
+            eg = similar_examples[0]  # Only first example to save tokens
+            user_content += f"\n\nSimilar pattern (use as reference):\n{eg['code'][:200]}"
 
         return [
             {"role": "system", "content": CODE_GEN_SYSTEM},
@@ -194,8 +181,9 @@ Related Tasks in This Feature:
         ]
 
     def _write_code(self, task_node: dict, result: dict, version: int = 1) -> Path:
-        """Write generated code to the filesystem."""
-        filename = result.get("filename", f"module_{task_node['id'][:8]}.py")
+        """Write generated code to the project-specific filesystem folder."""
+        filename = result.get("filename", f"module_{task_node['id'][:8]}.js")
+        project_id = task_node.get("project_id", "default_project")
 
         # Sanitize filename
         filename = filename.replace("..", "").lstrip("/").lstrip("\\")
@@ -206,7 +194,7 @@ Related Tasks in This Feature:
             suffix = Path(filename).suffix
             filename = str(Path(filename).parent / f"{stem}_v{version}{suffix}")
 
-        filepath = GENERATED_CODE_DIR / filename
+        filepath = GENERATED_CODE_DIR / project_id / filename
         filepath.parent.mkdir(parents=True, exist_ok=True)
 
         code = result.get("code", "# No code generated")

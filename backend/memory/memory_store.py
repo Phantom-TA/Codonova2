@@ -1,7 +1,7 @@
 """
 memory_store.py — Long-Term Vector Memory
 ==========================================
-Uses ChromaDB + sentence-transformers for fully local, free embeddings.
+Uses ChromaDB + built-in ONNX embeddings for fully local, free embeddings.
 Stores successful code patterns (score >= 7) for future context injection.
 
 ChromaDB Collections:
@@ -21,14 +21,14 @@ from pathlib import Path
 logger = logging.getLogger("memory_store")
 
 CHROMA_HOST = os.getenv("CHROMA_HOST", "localhost")
-CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8001"))
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"  # Fast, local, free — 80MB model
+CHROMA_PORT = int(os.getenv("CHROMA_PORT", "8000"))
+EMBEDDING_MODEL = "default"  # ChromaDB built-in ONNX model (all-MiniLM-L6-v2 via onnxruntime)
 
 
 class MemoryStore:
     """
     Manages long-term memory using ChromaDB vector store.
-    All embeddings are generated locally via sentence-transformers.
+    All embeddings are generated via ChromaDB's built-in ONNX embedding function.
     """
 
     COLLECTION_NAME = "successful_patterns"
@@ -69,20 +69,38 @@ class MemoryStore:
             persist_dir.mkdir(exist_ok=True)
             self._client = chromadb.PersistentClient(path=str(persist_dir))
 
-        # Load sentence-transformers embedding function
-        self._embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=EMBEDDING_MODEL
-        )
-        logger.info(f"Embedding model loaded: {EMBEDDING_MODEL}")
+        # Don't pass a client-side embedding function — let ChromaDB server use its
+        # built-in default (all-MiniLM-L6-v2 via ONNX). This avoids any dimension
+        # mismatch between client-side and server-side embedding metadata.
+        self._embedding_fn = None
+        logger.info("Using ChromaDB server-side default embeddings (no client embedding function)")
 
-        # Get or create collection
-        self._collection = self._client.get_or_create_collection(
-            name=self.COLLECTION_NAME,
-            embedding_function=self._embedding_fn,
-            metadata={"hnsw:space": "cosine"},
-        )
+        # Get or create collection — no embedding_function arg = server default
+        try:
+            self._collection = self._client.get_or_create_collection(
+                name=self.COLLECTION_NAME,
+                metadata={"hnsw:space": "cosine"},
+            )
+        except Exception as e:
+            if "dimension" in str(e).lower() or "collection" in str(e).lower():
+                logger.warning(f"Collection '{self.COLLECTION_NAME}' error: {e}. Recreating...")
+                try:
+                    self._client.delete_collection(name=self.COLLECTION_NAME)
+                    self._collection = self._client.create_collection(
+                        name=self.COLLECTION_NAME,
+                        metadata={"hnsw:space": "cosine"},
+                    )
+                except Exception as inner_e:
+                    logger.error(f"Failed to recreate collection: {inner_e}. Memory disabled.")
+                    self._collection = None
+                    return  # Gracefully disable memory — pipeline continues
+            else:
+                logger.error(f"ChromaDB init error: {e}. Memory disabled.")
+                self._collection = None
+                return
+
         logger.info(f"Collection '{self.COLLECTION_NAME}' ready "
-                    f"(count={self._collection.count()})")
+                    f"(count={self._collection.count() if self._collection else 0})")
 
     def store_success(
         self,
@@ -215,7 +233,7 @@ class MemoryStore:
             return {
                 "status": "active",
                 "count": self._collection.count(),
-                "model": EMBEDDING_MODEL,
+                "model": "chromadb-default-onnx",
             }
         except Exception:
             return {"status": "error", "count": 0}

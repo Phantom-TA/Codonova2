@@ -18,34 +18,16 @@ from graph.neo4j_client import (
 
 logger = logging.getLogger("evaluator_agent")
 
-EVAL_SYSTEM = """You are a senior code reviewer evaluating AI-generated software.
-Score the provided code on three dimensions, each from 0-10.
-
-Return a valid JSON object with this exact structure:
+EVAL_SYSTEM = """Score AI-generated code. Return JSON only:
 {
-  "scores": {
-    "correctness": 8,
-    "code_quality": 7,
-    "completeness": 9
-  },
-  "score": 8,
-  "critique": "Overall assessment of the code quality and issues",
-  "suggestions": [
-    "Specific actionable improvement 1",
-    "Specific actionable improvement 2"
-  ],
-  "strengths": ["What the code does well"],
+  "scores": {"correctness": 8, "code_quality": 7, "completeness": 9},
+  "score": 8.0,
+  "critique": "One sentence summary",
+  "suggestions": ["fix 1"],
+  "strengths": ["strength 1"],
   "passed": true
 }
-
-Scoring Criteria:
-- Correctness (0-10): Does it logically solve the task? Are there bugs?
-- Code Quality (0-10): PEP 8, no duplication, clear naming, proper error handling
-- Completeness (0-10): Does it fully address the acceptance criteria?
-- score: weighted average (correctness*0.5 + quality*0.3 + completeness*0.2)
-- passed: true if score >= 7
-
-Be constructive and specific."""
+scored 0-10. passed=true if score>=7."""
 
 
 class EvaluatorAgent:
@@ -154,12 +136,9 @@ class EvaluatorAgent:
                 "role": "user",
                 "content": (
                     f"Task: {task_node.get('title')}\n"
-                    f"Description: {task_node.get('description')}\n\n"
-                    f"File: {context['filename']}\n"
-                    f"Module Type: {context['module_type']}\n\n"
-                    f"Source Code:\n```python\n{context['source_code'][:3000]}\n```\n\n"
-                    f"Test Results: {test_summary}\n"
-                    f"Test Output:\n{context['test_output'][:1000]}"
+                    f"File: {context['filename']} ({context['module_type']})\n"
+                    f"Tests: {context['tests_passed']} passed / {context['tests_failed']} failed\n\n"
+                    f"Code (first 1000 chars):\n{context['source_code'][:1000]}"
                 ),
             },
         ]

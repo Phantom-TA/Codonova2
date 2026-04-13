@@ -23,29 +23,19 @@ logger = logging.getLogger("testing_agent")
 
 GENERATED_CODE_DIR = Path(os.getenv("GENERATED_CODE_DIR", "./generated_code"))
 
-TEST_GEN_SYSTEM = """You are a senior QA engineer who writes thorough pytest test suites.
-
-Given source code and its description, write comprehensive tests covering:
-- Happy path (normal usage)
-- Edge cases (empty inputs, None, zero, etc.)
-- Error conditions (invalid inputs, exceptions)
-
-Return a valid JSON object with this EXACT structure:
+TEST_GEN_SYSTEM = """Write a Jest test suite for the given code. Return JSON only:
 {
-  "test_filename": "tests/test_module_name.py",
-  "test_code": "import pytest\\n# Complete test code here",
+  "test_filename": "tests/module_name.test.js",
+  "test_code": "const m = require('../module');\\n// tests",
   "test_cases": [
-    {"name": "test_function_name", "description": "What this test verifies"}
+    {"name": "test_name", "description": "what it checks"}
   ]
 }
-
 Rules:
-- Use pytest style (def test_...) 
-- Import the module under test correctly based on its filename
-- Use pytest.raises() for exception testing
-- Each test function must have a docstring
-- Do NOT include markdown code blocks — test_code is plain text
-- Make tests actually runnable, not pseudocode"""
+- Write 2-4 tests only (happy path + key edge case)
+- Use Jest describe/it
+- Import module relative to its filename
+- No markdown in test_code"""
 
 
 class TestingAgent:
@@ -57,13 +47,7 @@ class TestingAgent:
 
     def __init__(self):
         upsert_agent(self.AGENT_NAME)
-        tests_dir = GENERATED_CODE_DIR / "tests"
-        tests_dir.mkdir(parents=True, exist_ok=True)
-        # Ensure conftest and __init__ exist
-        conftest = GENERATED_CODE_DIR / "tests" / "conftest.py"
-        if not conftest.exists():
-            conftest.write_text("# pytest conftest\nimport sys\nfrom pathlib import Path\n"
-                                "sys.path.insert(0, str(Path(__file__).parent.parent))\n")
+
 
     def run(self, task_node: dict) -> dict:
         """
@@ -94,10 +78,13 @@ class TestingAgent:
         test_result = self._generate_tests(task_node, code_module, source_code)
 
         # Write test file
-        test_filepath = self._write_tests(test_result)
+        project_id = task_node.get("project_id", "default_project")
+        test_filepath = self._write_tests(test_result, project_id)
+
+        self._ensure_npm_env(project_id)
 
         # Run tests
-        run_results = self._run_tests(test_filepath)
+        run_results = self._run_tests(test_filepath, project_id)
 
         # Store in Neo4j
         self._store_results(task_id, code_module["id"], test_result, run_results, test_filepath)
@@ -156,29 +143,35 @@ class TestingAgent:
         raw = llm_call("fast", messages, json_mode=True)
         return parse_json_response(raw)
 
-    def _write_tests(self, test_result: dict) -> Path:
+    def _write_tests(self, test_result: dict, project_id: str) -> Path:
         """Write test file to filesystem."""
-        test_filename = test_result.get("test_filename", f"tests/test_generated_{uuid.uuid4().hex[:8]}.py")
+        test_filename = test_result.get("test_filename", f"tests/test_generated_{uuid.uuid4().hex[:8]}.test.js")
         test_filename = test_filename.replace("..", "").lstrip("/")
-        test_filepath = GENERATED_CODE_DIR / test_filename
+        test_filepath = GENERATED_CODE_DIR / project_id / test_filename
         test_filepath.parent.mkdir(parents=True, exist_ok=True)
-        test_code = test_result.get("test_code", "# No tests generated")
+        test_code = test_result.get("test_code", "// No tests generated")
         test_filepath.write_text(test_code, encoding="utf-8")
         logger.info(f"Test file written: {test_filepath}")
         return test_filepath
 
-    def _run_tests(self, test_filepath: Path) -> dict:
-        """Execute pytest and parse results."""
-        report_file = test_filepath.parent / f".report_{test_filepath.stem}.json"
+    def _ensure_npm_env(self, project_id: str):
+        project_dir = GENERATED_CODE_DIR / project_id
+        pkg_json = project_dir / "package.json"
+        if not pkg_json.exists():
+            pkg_json.write_text('{"name": "codonova-project", "scripts": {"test": "jest"}}')
 
+    def _run_tests(self, test_filepath: Path, project_id: str) -> dict:
+        """Execute jest and parse results."""
+        report_file = test_filepath.parent / f".report_{test_filepath.stem}.json"
+        project_dir = GENERATED_CODE_DIR / project_id
+
+        # Use 'npx --yes jest' to bypass the install prompt if jest is missing locally
         cmd = [
-            "python", "-m", "pytest",
-            str(test_filepath),
-            "--json-report",
-            f"--json-report-file={report_file}",
-            "-v",
-            "--tb=short",
-            "--timeout=30",
+            "npx", "--yes", "jest",
+            str(test_filepath.relative_to(project_dir)),
+            "--json",
+            f"--outputFile={report_file}",
+            "--passWithNoTests"
         ]
 
         try:
@@ -187,7 +180,7 @@ class TestingAgent:
                 capture_output=True,
                 text=True,
                 timeout=120,
-                cwd=str(GENERATED_CODE_DIR),
+                cwd=str(project_dir),
             )
             output = proc.stdout + proc.stderr
 
@@ -196,19 +189,16 @@ class TestingAgent:
             if report_file.exists():
                 try:
                     report = json.loads(report_file.read_text())
-                    summary = report.get("summary", {})
-                    passed = summary.get("passed", 0)
-                    failed = summary.get("failed", 0) + summary.get("error", 0)
+                    passed = report.get("numPassedTests", 0)
+                    failed = report.get("numFailedTests", 0)
                     # Extract error messages
-                    for test in report.get("tests", []):
-                        if test.get("outcome") in ("failed", "error"):
-                            errors_list.append({
-                                "test": test.get("nodeid", ""),
-                                "message": test.get("call", {}).get("longrepr", "")[:500],
-                            })
+                    for test_res in report.get("testResults", []):
+                        if test_res.get("status") == "failed":
+                            msg = test_res.get("message", "")[:500]
+                            errors_list.append({"test": "jest", "message": msg})
                     report_file.unlink(missing_ok=True)
                 except Exception as e:
-                    logger.warning(f"Could not parse test report: {e}")
+                    logger.warning(f"Could not parse Jest report: {e}")
                     passed = 1 if proc.returncode == 0 else 0
                     failed = 0 if proc.returncode == 0 else 1
             else:

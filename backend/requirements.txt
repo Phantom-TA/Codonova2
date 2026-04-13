@@ -17,9 +17,6 @@ neo4j==5.19.0
 # Vector Store
 chromadb==0.5.3
 
-# Embeddings (lightweight local model ~80MB, downloads at first use)
-sentence-transformers==3.0.0
-
 # Testing
 pytest==8.2.0
 pytest-json-report==1.5.0

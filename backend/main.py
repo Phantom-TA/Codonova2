@@ -83,7 +83,10 @@ class ConnectionManager:
 
     def disconnect(self, websocket: WebSocket, project_id: str = None):
         if project_id and project_id in self.active_connections:
-            self.active_connections[project_id].discard(websocket)
+            try:
+                self.active_connections[project_id].remove(websocket)
+            except ValueError:
+                pass
         else:
             try:
                 self.global_connections.remove(websocket)
@@ -123,22 +126,25 @@ async def broadcast_event(message: str):
 async def startup_event():
     """Initialize Neo4j schema and agent nodes on startup."""
     try:
-        from graph.neo4j_client import initialize_schema, upsert_agent
-        initialize_schema()
+        import graph.neo4j_client as neo4j_client
+
+        neo4j_client.initialize_schema()
+
         for agent_name in [
             "PlanningAgent", "DeveloperAgent", "TestingAgent",
             "DebuggingAgent", "EvaluatorAgent",
         ]:
-            upsert_agent(agent_name)
-        logger.info("Neo4j schema and agents initialized.")
+            neo4j_client.upsert_agent(agent_name)
+
+        logger.info("✅ Neo4j schema and agents initialized.")
+
     except Exception as e:
         logger.warning(f"Neo4j startup init failed (may not be running): {e}")
 
-
 @app.on_event("shutdown")
 async def shutdown_event():
-    from graph.neo4j_client import close_driver
-    close_driver()
+    import graph.neo4j_client as neo4j_client
+    neo4j_client.close_driver()
     logger.info("Neo4j driver closed.")
 
 
@@ -211,6 +217,15 @@ async def start_pipeline(request: StartRequest, background_tasks: BackgroundTask
         raise HTTPException(status_code=400, detail="Requirement cannot be empty")
 
     try:
+        import shutil
+        # Step 0: Purge old generated code
+        if GENERATED_CODE_DIR.exists():
+            try:
+                shutil.rmtree(GENERATED_CODE_DIR)
+            except Exception as e:
+                logger.warning(f"Could not fully clear generated_code: {e}")
+        GENERATED_CODE_DIR.mkdir(parents=True, exist_ok=True)
+
         # Step 1: Plan
         from agents.planning_agent import PlanningAgent
         planner = PlanningAgent()
