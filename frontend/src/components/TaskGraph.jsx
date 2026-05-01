@@ -48,6 +48,16 @@ export default function TaskGraph({ projectId, onNodeClick }) {
     return () => clearInterval(interval)
   }, [fetchGraph])
 
+  // Apply custom physics to spread the graph out properly
+  useEffect(() => {
+    if (fgRef.current) {
+      const chargeForce = fgRef.current.d3Force('charge')
+      const linkForce = fgRef.current.d3Force('link')
+      if (chargeForce) chargeForce.strength(-400)
+      if (linkForce) linkForce.distance(80)
+    }
+  }, [graphData])
+
   const handleNodeClick = useCallback((node) => {
     setSelectedNode(node)
     if (onNodeClick) onNodeClick(node)

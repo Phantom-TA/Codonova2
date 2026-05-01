@@ -217,13 +217,7 @@ async def start_pipeline(request: StartRequest, background_tasks: BackgroundTask
         raise HTTPException(status_code=400, detail="Requirement cannot be empty")
 
     try:
-        import shutil
-        # Step 0: Purge old generated code
-        if GENERATED_CODE_DIR.exists():
-            try:
-                shutil.rmtree(GENERATED_CODE_DIR)
-            except Exception as e:
-                logger.warning(f"Could not fully clear generated_code: {e}")
+        # Ensure generated_code directory exists
         GENERATED_CODE_DIR.mkdir(parents=True, exist_ok=True)
 
         # Step 1: Plan

@@ -84,6 +84,7 @@ def get_client(agent_type: str, key_offset: int = 0) -> tuple[OpenAI, str]:
             OpenAI(
                 api_key=active_key,
                 base_url=os.getenv("GEMINI_BASE_URL"),
+                max_retries=0,
             ),
             os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
         )
@@ -99,6 +100,7 @@ def get_client(agent_type: str, key_offset: int = 0) -> tuple[OpenAI, str]:
             OpenAI(
                 api_key=active_key,
                 base_url=os.getenv("GROQ_BASE_URL"),
+                max_retries=0,
             ),
             os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile"),
         )
@@ -110,6 +112,7 @@ def _get_fallback_client() -> tuple[OpenAI, str]:
         OpenAI(
             api_key=os.getenv("OPENROUTER_API_KEY"),
             base_url=os.getenv("OPENROUTER_BASE_URL"),
+            max_retries=0,
         ),
         os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.2-3b-instruct:free"),
     )
@@ -141,7 +144,13 @@ def llm_call(
     start_time = time.time()
     key_offset = 0
 
-    for attempt in range(5):
+    # Determine total available keys to bound the retry loop
+    provider_env = "REASONING_LLM_PROVIDER" if agent_type == "reasoning" else "FAST_LLM_PROVIDER"
+    provider = os.getenv(provider_env, "gemini").lower()
+    keys_str = os.getenv(f"{provider.upper()}_API_KEY", "")
+    key_count = max(1, len([k.strip(' "\'') for k in keys_str.split(",") if k.strip(' "\'')]))
+
+    for attempt in range(key_count):
         client, model = get_client(agent_type, key_offset)
         kwargs["model"] = model
 
@@ -153,9 +162,9 @@ def llm_call(
             
             # If we offset successfully, update the global index implicitly for future calls
             global gemini_key_index, groq_key_index
-            if agent_type == "reasoning" and key_offset > 0:
+            if provider == "gemini" and key_offset > 0:
                 gemini_key_index += key_offset
-            elif agent_type == "fast" and key_offset > 0:
+            elif provider == "groq" and key_offset > 0:
                 groq_key_index += key_offset
                 
             return response.choices[0].message.content
@@ -167,20 +176,20 @@ def llm_call(
                 logger.error(f"LLM API Error Body: {error_details}")
 
             error_str = str(e).lower()
-            is_rate_limit = "rate" in error_str or "429" in error_str or "quota" in error_str or "resource exhausted" in error_str
+            is_rate_limit = "rate" in error_str or "429" in error_str or "quota" in error_str or "resource exhausted" in error_str or "403" in error_str or "permission_denied" in error_str
 
             if is_rate_limit:
                 logger.warning(
-                    f"Rate limit / Quota hit for {model} (attempt {attempt + 1}/5). "
+                    f"Rate limit / Quota hit for {model} (attempt {attempt + 1}/{key_count}). "
                     f"Rotating to next API key..."
                 )
                 key_offset += 1
                 time.sleep(1) # Small pause before trying next key
 
-                if attempt < 4:
+                if attempt < key_count - 1:
                     continue
 
-                # After 5 attempts, fall back to OpenRouter
+                # After trying all keys, fall back to OpenRouter
                 logger.warning("All provided keys exhausted. Falling back to OpenRouter...")
                 fallback_client, fallback_model = _get_fallback_client()
                 kwargs["model"] = fallback_model

@@ -212,9 +212,10 @@ def update_agent_profile(name: str, score: float, task_type: str, retries: int):
     MATCH (a:Agent {name: $name})
     SET a.avg_score = ((a.avg_score * a.total_tasks) + $score) / (a.total_tasks + 1),
         a.total_tasks = a.total_tasks + 1,
+        a.retries = coalesce(a.retries, 0) + $retries,
         a.updated_at = $at
     """
-    query_graph(cypher, {"name": name, "score": score, "at": datetime.utcnow().isoformat()})
+    query_graph(cypher, {"name": name, "score": score, "retries": retries, "at": datetime.utcnow().isoformat()})
 
 
 # ─────────────────────────────────────────
@@ -223,29 +224,50 @@ def update_agent_profile(name: str, score: float, task_type: str, retries: int):
 def get_project_graph_data(project_id: str) -> dict:
     nodes = query_graph("""
     MATCH (p:Project {id: $pid})-[:HAS_FEATURE]->(f:Feature)-[:HAS_TASK]->(t:Task)
-    RETURN t.id AS id, t.title AS label, t.status AS status
+    OPTIONAL MATCH (cm:CodeModule)-[:PRODUCED_BY]->(t)
+    WITH p, f, t, cm
+    UNWIND [
+        {id: p.id, label: p.title, type: 'Project', status: p.status},
+        {id: f.id, label: f.title, type: 'Feature', status: 'Feature'},
+        {id: t.id, label: t.title, type: 'Task', status: t.status},
+        CASE WHEN cm IS NOT NULL THEN {id: cm.id, label: cm.filename, type: 'CodeModule', status: 'CodeModule'} ELSE null END
+    ] AS n
+    WITH n WHERE n IS NOT NULL
+    RETURN DISTINCT n.id AS id, n.label AS label, n.type AS type, n.status AS status
     """, {"pid": project_id})
+    
     links = query_graph("""
-    MATCH (t1:Task)-[:DEPENDS_ON]->(t2:Task)
-    RETURN t1.id AS source, t2.id AS target, 'DEPENDS_ON' AS type
-    """)
+    MATCH (p:Project {id: $pid})-[:HAS_FEATURE]->(f:Feature)-[:HAS_TASK]->(t:Task)
+    OPTIONAL MATCH (cm:CodeModule)-[:PRODUCED_BY]->(t)
+    OPTIONAL MATCH (t)-[dep:DEPENDS_ON]->(t2:Task)
+    WITH p, f, t, cm, t2
+    UNWIND [
+        {source: p.id, target: f.id, type: 'HAS_FEATURE'},
+        {source: f.id, target: t.id, type: 'HAS_TASK'},
+        CASE WHEN cm IS NOT NULL THEN {source: cm.id, target: t.id, type: 'PRODUCED_BY'} ELSE null END,
+        CASE WHEN t2 IS NOT NULL THEN {source: t.id, target: t2.id, type: 'DEPENDS_ON'} ELSE null END
+    ] AS link
+    WITH link WHERE link IS NOT NULL
+    RETURN DISTINCT link.source AS source, link.target AS target, link.type AS type
+    """, {"pid": project_id})
+    
     return {"nodes": nodes, "links": links}
 
 
 def get_most_failed_task_types():
-    return query_graph("MATCH (t:Task) WHERE t.status = 'FAILED' RETURN t.type AS type, count(*) AS failures ORDER BY failures DESC LIMIT 10")
+    return query_graph("MATCH (t:Task) WHERE t.status = 'FAILED' RETURN t.type AS task_type, count(*) AS failure_count ORDER BY failure_count DESC LIMIT 10")
 
 
 def get_agent_retry_rates():
-    return query_graph("MATCH (a:Agent) RETURN a.name AS agent, a.total_tasks AS tasks, a.avg_score AS score ORDER BY score DESC")
+    return query_graph("MATCH (a:Agent) RETURN a.name AS agent, a.total_tasks AS tasks, coalesce(a.retries, 0) AS retries, a.avg_score AS avg_score, CASE WHEN a.total_tasks > 0 THEN toFloat(coalesce(a.retries,0)) / a.total_tasks ELSE 0 END AS retry_rate ORDER BY avg_score DESC")
 
 
 def get_recurring_bugs():
     """Get the most common root causes from Bug nodes stored by the debugging agent."""
     return query_graph("""
     MATCH (b:Bug)
-    RETURN b.root_cause AS root_cause, count(*) AS occurrences
-    ORDER BY occurrences DESC
+    RETURN b.error_type AS error_type, count(*) AS frequency
+    ORDER BY frequency DESC
     LIMIT 10
     """)
 
@@ -254,10 +276,10 @@ def get_reused_patterns():
     """Get CodeModules that have been reused (linked to multiple tasks)."""
     return query_graph("""
     MATCH (cm:CodeModule)-[:PRODUCED_BY]->(t:Task)
-    WITH cm, count(t) AS usage
-    WHERE usage > 1
-    RETURN cm.filename AS pattern, cm.module_type AS type, usage
-    ORDER BY usage DESC
+    WITH cm, count(t) AS uses
+    WHERE uses > 1
+    RETURN cm.filename AS pattern, cm.module_type AS type, uses
+    ORDER BY uses DESC
     LIMIT 10
     """)
 

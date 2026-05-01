@@ -123,6 +123,9 @@ class DeveloperAgent:
         filepath = self._write_code(task_node, result, version=version)
         module_id = self._store_code_module(task_id, result, filepath, version=version)
 
+        # Record this retry in the graph for analytics
+        update_agent_profile(self.AGENT_NAME, score=6.5, task_type="CODE", retries=1)
+
         return {
             "success": True,
             "task_id": task_id,
