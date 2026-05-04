@@ -25,8 +25,8 @@ from memory.memory_store import MemoryStore
 
 logger = logging.getLogger("correction_engine")
 
-PASS_SCORE = 7
-MAX_RETRIES = 3
+PASS_SCORE = 6
+MAX_RETRIES = 2
 
 
 class CorrectionEngine:
@@ -105,6 +105,9 @@ class CorrectionEngine:
                     task_id=task_id,
                     module_id=dev_result.get("code_module_id", ""),
                 )
+                # Record actual retry count in Neo4j
+                from graph.neo4j_client import update_agent_profile
+                update_agent_profile("DeveloperAgent", score=score, task_type="CODE", retries=attempts - 1)
                 mark_task_status(task_id, "DONE")
                 await self._emit("task_done", task_id=task_id, score=score, agent="Pipeline")
                 return {

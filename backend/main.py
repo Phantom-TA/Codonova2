@@ -254,6 +254,35 @@ async def start_pipeline(request: StartRequest, background_tasks: BackgroundTask
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/execute/{project_id}")
+async def execute_pipeline(project_id: str, background_tasks: BackgroundTasks):
+    """Start the scheduler for an already planned project."""
+    try:
+        from graph.neo4j_client import query_graph
+        # Verify project exists
+        res = query_graph("MATCH (p:Project {id: $pid}) RETURN p.status AS status", {"pid": project_id})
+        if not res:
+            raise HTTPException(status_code=404, detail="Project not found")
+            
+        # Update status to RUNNING
+        query_graph("MATCH (p:Project {id: $pid}) SET p.status = 'RUNNING'", {"pid": project_id})
+        
+        # Launch scheduler in background
+        background_tasks.add_task(_run_scheduler_background, project_id=project_id)
+        
+        await ws_manager.broadcast(json.dumps({
+            "event": "pipeline_started",
+            "project_id": project_id,
+            "timestamp": datetime.utcnow().isoformat(),
+        }))
+        
+        return {"status": "RUNNING", "project_id": project_id}
+    except Exception as e:
+        logger.error(f"Pipeline execution failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
 async def _run_scheduler_background(project_id: str):
     """Background task: run the scheduler for a project."""
     try:
@@ -272,11 +301,12 @@ async def get_project_status(project_id: str):
 
         cypher = """
         MATCH (p:Project {id: $project_id})
-        OPTIONAL MATCH (p)-[:HAS_FEATURE]->(:Feature)-[:HAS_TASK]->(t:Task)
+        OPTIONAL MATCH (p)-[:HAS_FEATURE]->(f:Feature)-[:HAS_TASK]->(t:Task)
         RETURN
           p.title AS title,
           p.status AS project_status,
-          p.task_count AS total_tasks,
+          count(t) AS total_tasks,
+          count(DISTINCT f) AS feature_count,
           count(CASE WHEN t.status = 'DONE' THEN 1 END) AS done,
           count(CASE WHEN t.status = 'FAILED' THEN 1 END) AS failed,
           count(CASE WHEN t.status = 'IN_PROGRESS' THEN 1 END) AS in_progress,
@@ -290,13 +320,15 @@ async def get_project_status(project_id: str):
         row = result[0]
         total = row.get("total_tasks") or 1
         done = row.get("done", 0) or 0
-        progress = round((done / total) * 100, 1)
+        # Progress = done / (total - blocked) so blocked don't skew 100%
+        effective_total = max(1, total - (row.get("blocked", 0) or 0))
+        progress = round((done / effective_total) * 100, 1)
 
         return {
             "project_id": project_id,
             "title": row.get("title"),
             "status": row.get("project_status"),
-            "progress_pct": progress,
+            "progress_pct": min(progress, 100.0),
             "tasks": {
                 "total": total,
                 "done": done,
@@ -304,6 +336,7 @@ async def get_project_status(project_id: str):
                 "in_progress": row.get("in_progress", 0),
                 "pending": row.get("pending", 0),
                 "blocked": row.get("blocked", 0),
+                "features": row.get("feature_count", 0),
             },
         }
     except HTTPException:
@@ -352,9 +385,97 @@ async def get_llm_log():
     """Return the LLM call log for monitoring."""
     from llm_client import get_call_log
     log = get_call_log()
+    return {"total_calls": len(log), "calls": log[-100:]}
+
+
+@app.get("/api/analytics/agents")
+async def get_agent_analytics(project_id: Optional[str] = None):
+    """
+    Per-agent analytics. Handles both old log format (agent_type='reasoning'/'fast')
+    and new format (agent_type='PlanningAgent', model_tier='reasoning').
+    """
+    from llm_client import get_call_log
+    from graph.neo4j_client import get_agent_retry_rates, get_most_failed_task_types
+
+    all_calls = get_call_log()
+    if project_id:
+        call_log = [e for e in all_calls if e.get("project_id") == project_id]
+        scope = f"project:{project_id[:8]}"
+    else:
+        call_log = all_calls
+        scope = "global"
+
+    TIER_NAMES = {"reasoning", "fast"}
+
+    def _resolve(entry):
+        raw_agent = entry.get("agent_type") or "unknown"
+        raw_tier  = entry.get("model_tier")  or ""
+        # Old entries: agent_type held the tier name
+        if raw_agent in TIER_NAMES and not raw_tier:
+            return "unknown", raw_agent
+        return raw_agent, raw_tier or "unknown"
+
+    def _agg(entries, group_key):
+        stats = {}
+        for entry in entries:
+            agent_key, tier_key = _resolve(entry)
+            key = (agent_key if group_key == "agent_type" else tier_key) or "unknown"
+            if key not in stats:
+                stats[key] = {
+                    "total_calls": 0, "successful_calls": 0, "failed_calls": 0,
+                    "total_tokens": 0, "total_latency_ms": 0, "models_used": set(),
+                }
+            s = stats[key]
+            s["total_calls"]      += 1
+            s["successful_calls"] += int(bool(entry.get("success")))
+            s["failed_calls"]     += int(not bool(entry.get("success")))
+            s["total_tokens"]     += entry.get("tokens_used") or 0
+            s["total_latency_ms"] += entry.get("latency_ms")  or 0
+            s["models_used"].add(entry.get("model", "unknown"))
+        for s in stats.values():
+            calls = s["total_calls"] or 1
+            s["avg_latency_ms"]   = round(s["total_latency_ms"] / calls, 1)
+            s["success_rate_pct"] = round((s["successful_calls"] / calls) * 100, 1)
+            s["models_used"]      = list(s["models_used"])
+        return stats
+
+    agent_stats      = _agg(call_log, "agent_type")
+    model_tier_stats = _agg(call_log, "model_tier")
+
+    neo4j_agents = []
+    try:
+        neo4j_agents = get_agent_retry_rates()
+        if project_id:
+            for ag in neo4j_agents:
+                ag_s = agent_stats.get(ag.get("agent", ""), {})
+                ag["project_tokens"] = ag_s.get("total_tokens", 0)
+                ag["project_calls"]  = ag_s.get("total_calls",  0)
+    except Exception:
+        pass
+
+    total_tokens = sum(s["total_tokens"] for s in agent_stats.values())
+    total_calls  = sum(s["total_calls"]  for s in agent_stats.values())
+    total_failed = sum(s["failed_calls"] for s in agent_stats.values())
+
+    failed_types = []
+    try:
+        failed_types = get_most_failed_task_types()
+    except Exception:
+        pass
+
     return {
-        "total_calls": len(log),
-        "calls": log[-100:],  # Last 100 calls
+        "generated_at": datetime.utcnow().isoformat(),
+        "scope": scope,
+        "summary": {
+            "total_llm_calls":          total_calls,
+            "total_tokens_used":        total_tokens,
+            "total_failed_calls":       total_failed,
+            "overall_success_rate_pct": round(((total_calls - total_failed) / max(1, total_calls)) * 100, 1),
+        },
+        "per_agent":              agent_stats,
+        "per_model_tier":         model_tier_stats,
+        "neo4j_agents":           neo4j_agents,
+        "most_failed_task_types": failed_types,
     }
 
 

@@ -4,14 +4,16 @@ import AgentFeed from './components/AgentFeed.jsx'
 import CodeViewer from './components/CodeViewer.jsx'
 import EvalChart from './components/EvalChart.jsx'
 import InsightsPanel from './components/InsightsPanel.jsx'
+import AgentAnalytics from './components/AgentAnalytics.jsx'
 
 // ─── Panel Definitions ────────────────────────────────────────────────────────
 const PANELS = [
-  { id: 'graph',    label: 'Task Graph',   icon: '⬡', component: TaskGraph },
-  { id: 'feed',     label: 'Agent Feed',   icon: '⚡', component: AgentFeed },
-  { id: 'code',     label: 'Code Viewer',  icon: '⌨', component: CodeViewer },
-  { id: 'eval',     label: 'Evaluations',  icon: '★',  component: EvalChart },
-  { id: 'insights', label: 'Insights',     icon: '◈',  component: InsightsPanel },
+  { id: 'graph',     label: 'Task Graph',       component: TaskGraph },
+  { id: 'feed',      label: 'Agent Feed',       component: AgentFeed },
+  { id: 'code',      label: 'Code Viewer',      component: CodeViewer },
+  { id: 'analytics', label: 'Agent Analytics',  component: AgentAnalytics },
+  { id: 'eval',      label: 'Evaluations',      component: EvalChart },
+  { id: 'insights',  label: 'Insights',         component: InsightsPanel },
 ]
 
 // ─── Status Colors ─────────────────────────────────────────────────────────
@@ -29,6 +31,14 @@ function ProjectStatusBar({ status, projectId }) {
   const pct = status.progress_pct || 0
   const color = STATUS_COLOR[status.status] || '#64748b'
 
+  const handleExecute = async () => {
+    try {
+      await fetch(`/api/execute/${projectId}`, { method: 'POST' })
+    } catch (e) {
+      alert('Failed to start execution: ' + e.message)
+    }
+  }
+
   return (
     <div className="glass-card px-4 py-2.5 flex items-center gap-4 animate-fade-in">
       <div className="min-w-0">
@@ -45,6 +55,14 @@ function ProjectStatusBar({ status, projectId }) {
         </div>
         <span className="text-xs font-semibold flex-shrink-0" style={{ color }}>{pct}%</span>
       </div>
+      {status.status === 'PLANNED' && (
+        <button
+          onClick={handleExecute}
+          className="px-4 py-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg text-xs font-semibold whitespace-nowrap transition-all shadow-[0_0_15px_rgba(139,92,246,0.3)] flex items-center gap-2 flex-shrink-0"
+        >
+          🚀 Approve Plan & Implement
+        </button>
+      )}
       <div className="flex gap-3 text-xs text-slate-500 flex-shrink-0">
         <span className="text-green-400">{status.tasks?.done || 0} done</span>
         <span className="text-red-400">{status.tasks?.failed || 0} failed</span>
@@ -238,7 +256,7 @@ export default function App() {
       } catch (e) { /* ignore */ }
     }
     fetch_status()
-    const interval = setInterval(fetch_status, 8000)
+    const interval = setInterval(fetch_status, 2000)
     return () => clearInterval(interval)
   }, [projectId])
 
@@ -315,7 +333,6 @@ export default function App() {
                 }
               `}
             >
-              <span className="text-base flex-shrink-0">{panel.icon}</span>
               {sidebarOpen && <span className="font-medium">{panel.label}</span>}
               {!sidebarOpen && (
                 <span className="absolute left-full ml-2 px-2 py-1 bg-slate-800 text-xs text-slate-200 rounded

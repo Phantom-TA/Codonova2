@@ -12,9 +12,10 @@ import json
 import uuid
 import logging
 from datetime import datetime
-from llm_client import llm_call, parse_json_response
+from llm_client import llm_call, parse_json_response, set_active_agent
 from graph.neo4j_client import (
-    create_node, link_nodes, query_graph, upsert_agent, update_agent_profile
+    create_node, link_nodes, query_graph, upsert_agent, update_agent_profile,
+    store_api_schema
 )
 
 logger = logging.getLogger("planning_agent")
@@ -38,7 +39,10 @@ Return JSON only:
     {"id": "f1", "title": "Feature name", "description": "One sentence", "priority": 1}
   ]
 }
-Rules: 2-5 features max. Be concise."""
+Rules: 
+- STRICTLY 1-3 features max. Keep it extremely minimal.
+- ALWAYS include one feature for "Static HTML/JS Frontend".
+- Do not over-engineer."""
 
     TASK_DECOMPOSITION_SYSTEM = """Break a software feature into development tasks.
 Return JSON only:
@@ -57,9 +61,27 @@ Return JSON only:
 }
 Rules:
 - type must be CODE or TEST
-- 3-6 tasks per feature max
+- 1-3 tasks per feature max to save tokens and prevent failure.
+- Group logic into single files (e.g. models and routes in one file) to minimize file count.
+- ALWAYS include a task to generate an `index.html` frontend that interacts with the API.
 - Each task = one file. No subtasks.
 - depends_on: list task ids this needs first"""
+
+    API_SCHEMA_SYSTEM = """Given a list of task descriptions for a software project, extract all REST API endpoints the backend will expose.
+Return JSON only:
+{
+  "endpoints": [
+    {"method": "GET",  "path": "/api/students",     "description": "List all students"},
+    {"method": "POST", "path": "/api/students",     "description": "Register a student"},
+    {"method": "POST", "path": "/api/marks",        "description": "Add marks for a student"},
+    {"method": "GET",  "path": "/api/statistics",   "description": "Class statistics"}
+  ],
+  "base_port": 4000
+}
+Rules:
+- Only list backend REST endpoints (not HTML pages).
+- Be complete - the frontend will use EXACTLY these endpoints.
+- base_port is always 4000."""
 
     # ─── Core Methods ─────────────────────────────────────────────────────────
 
@@ -75,6 +97,7 @@ Rules:
         """
         logger.info(f"PlanningAgent starting for requirement: {requirement[:100]}...")
         upsert_agent(self.AGENT_NAME)
+        set_active_agent(self.AGENT_NAME)
 
         start_time = datetime.utcnow()
 
@@ -84,8 +107,11 @@ Rules:
         # Step 2: Decompose into tasks
         tasks_data = self._decompose_tasks(requirement, features_data)
 
-        # Step 3: Store everything in Neo4j
-        project_id = self._store_in_graph(requirement, features_data, tasks_data)
+        # Step 3: Extract API schema (lightweight — endpoint list only)
+        api_schema = self._extract_api_schema(features_data, tasks_data)
+
+        # Step 4: Store everything in Neo4j
+        project_id = self._store_in_graph(requirement, features_data, tasks_data, api_schema)
 
         elapsed = (datetime.utcnow() - start_time).total_seconds()
         logger.info(
@@ -166,8 +192,25 @@ Rules:
         logger.info(f"Total decomposition results: {len(all_tasks)} tasks.")
         return {"tasks": all_tasks}
 
+    def _extract_api_schema(self, features_data: dict, tasks_data: dict) -> dict:
+        """Lightweight Call 3: extract all REST endpoints from the planned tasks."""
+        logger.info("Call 3: Extracting API schema from planned tasks...")
+        task_summary = "\n".join(
+            f"- {t.get('title')}: {t.get('description', '')}"
+            for t in tasks_data.get("tasks", [])
+        )
+        messages = [
+            {"role": "system", "content": self.API_SCHEMA_SYSTEM},
+            {"role": "user",   "content": f"Project: {features_data.get('project_title', '')}\n\nTasks:\n{task_summary}"},
+        ]
+        raw = llm_call("fast", messages, json_mode=True)  # use fast model to save quota
+        schema = parse_json_response(raw)
+        endpoints = schema.get("endpoints", [])
+        logger.info(f"API schema extracted: {len(endpoints)} endpoints.")
+        return schema
+
     def _store_in_graph(
-        self, requirement: str, features_data: dict, tasks_data: dict
+        self, requirement: str, features_data: dict, tasks_data: dict, api_schema: dict = None
     ) -> str:
         """Store the full plan into Neo4j and return the project_id."""
         project_id = str(uuid.uuid4())
@@ -256,10 +299,14 @@ Rules:
                     link_nodes(task_neo4j_id, dep_neo4j_id, "DEPENDS_ON")
                     logger.debug(f"Dependency: {logical_id} → {dep_logical_id}")
 
-        # Update project status
+        # Update project status and store API schema
+        api_schema_json = json.dumps(api_schema) if api_schema else "{}"
         query_graph(
-            "MATCH (p:Project {id: $pid}) SET p.status = 'PLANNED', p.task_count = $tc",
-            {"pid": project_id, "tc": len(tasks_data.get("tasks", []))},
+            "MATCH (p:Project {id: $pid}) SET p.status = 'PLANNED', p.task_count = $tc, p.api_schema = $schema",
+            {"pid": project_id, "tc": len(tasks_data.get("tasks", [])), "schema": api_schema_json},
         )
+        # Also store in dedicated helper for easy retrieval
+        if api_schema:
+            store_api_schema(project_id, api_schema)
 
         return project_id

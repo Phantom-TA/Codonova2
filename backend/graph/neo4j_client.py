@@ -224,13 +224,9 @@ def update_agent_profile(name: str, score: float, task_type: str, retries: int):
 def get_project_graph_data(project_id: str) -> dict:
     nodes = query_graph("""
     MATCH (p:Project {id: $pid})-[:HAS_FEATURE]->(f:Feature)-[:HAS_TASK]->(t:Task)
-    OPTIONAL MATCH (cm:CodeModule)-[:PRODUCED_BY]->(t)
-    WITH p, f, t, cm
     UNWIND [
-        {id: p.id, label: p.title, type: 'Project', status: p.status},
         {id: f.id, label: f.title, type: 'Feature', status: 'Feature'},
-        {id: t.id, label: t.title, type: 'Task', status: t.status},
-        CASE WHEN cm IS NOT NULL THEN {id: cm.id, label: cm.filename, type: 'CodeModule', status: 'CodeModule'} ELSE null END
+        {id: t.id, label: t.title, type: 'Task', status: t.status}
     ] AS n
     WITH n WHERE n IS NOT NULL
     RETURN DISTINCT n.id AS id, n.label AS label, n.type AS type, n.status AS status
@@ -238,13 +234,9 @@ def get_project_graph_data(project_id: str) -> dict:
     
     links = query_graph("""
     MATCH (p:Project {id: $pid})-[:HAS_FEATURE]->(f:Feature)-[:HAS_TASK]->(t:Task)
-    OPTIONAL MATCH (cm:CodeModule)-[:PRODUCED_BY]->(t)
     OPTIONAL MATCH (t)-[dep:DEPENDS_ON]->(t2:Task)
-    WITH p, f, t, cm, t2
     UNWIND [
-        {source: p.id, target: f.id, type: 'HAS_FEATURE'},
         {source: f.id, target: t.id, type: 'HAS_TASK'},
-        CASE WHEN cm IS NOT NULL THEN {source: cm.id, target: t.id, type: 'PRODUCED_BY'} ELSE null END,
         CASE WHEN t2 IS NOT NULL THEN {source: t.id, target: t2.id, type: 'DEPENDS_ON'} ELSE null END
     ] AS link
     WITH link WHERE link IS NOT NULL
@@ -286,3 +278,93 @@ def get_reused_patterns():
 
 def create_project_snapshot(project_id: str):
     query_graph("MATCH (p:Project {id: $pid}) SET p.last_snapshot = $at", {"pid": project_id, "at": datetime.utcnow().isoformat()})
+
+
+# ─────────────────────────────────────────
+# LLM Call Log Persistence
+# ─────────────────────────────────────────
+def persist_llm_call(entry: dict):
+    """
+    Write a single LLM call log entry as an LLMCallLog node in Neo4j.
+    Called non-blocking from llm_client._log_call().
+    """
+    try:
+        query_graph("""
+        CREATE (l:LLMCallLog {
+            id:         $id,
+            timestamp:  $timestamp,
+            agent_type: $agent_type,
+            model:      $model,
+            latency_ms: $latency_ms,
+            tokens_used: $tokens_used,
+            success:    $success,
+            project_id: $project_id
+        })
+        """, {
+            "id":          str(uuid.uuid4()),
+            "timestamp":   entry.get("timestamp", datetime.utcnow().isoformat()),
+            "agent_type":  entry.get("agent_type", "unknown"),
+            "model":       entry.get("model", "unknown"),
+            "latency_ms":  entry.get("latency_ms", 0),
+            "tokens_used": entry.get("tokens_used") or 0,
+            "success":     entry.get("success", False),
+            "project_id":  entry.get("project_id", "__global__"),
+        })
+    except Exception as e:
+        logger.debug(f"LLM call log persist failed (non-critical): {e}")
+
+
+def load_llm_call_log(limit: int = 2000) -> list[dict]:
+    """
+    Load the most recent LLM call log entries from Neo4j.
+    Used on startup to pre-populate the in-memory call_log.
+    """
+    try:
+        results = query_graph("""
+        MATCH (l:LLMCallLog)
+        RETURN
+            l.timestamp   AS timestamp,
+            l.agent_type  AS agent_type,
+            l.model       AS model,
+            l.latency_ms  AS latency_ms,
+            l.tokens_used AS tokens_used,
+            l.success     AS success,
+            l.project_id  AS project_id
+        ORDER BY l.timestamp DESC
+        LIMIT $limit
+        """, {"limit": limit})
+        return results
+    except Exception as e:
+        logger.warning(f"Could not load LLM call log from Neo4j: {e}")
+        return []
+
+# -----------------------------------------
+# API Schema (cross-agent contract)
+# -----------------------------------------
+
+def store_api_schema(project_id: str, schema: dict) -> None:
+    """Persist the API endpoint contract on the Project node."""
+    import json
+    try:
+        query_graph(
+            "MATCH (p:Project {id: $pid}) SET p.api_schema = $schema",
+            {"pid": project_id, "schema": json.dumps(schema)},
+        )
+        logger.info(f"API schema stored for project {project_id}: {len(schema.get('endpoints', []))} endpoints")
+    except Exception as e:
+        logger.warning(f"Could not store API schema: {e}")
+
+
+def get_api_schema(project_id: str) -> dict:
+    """Retrieve the API endpoint contract for a project."""
+    import json
+    try:
+        results = query_graph(
+            "MATCH (p:Project {id: $pid}) RETURN p.api_schema AS schema",
+            {"pid": project_id},
+        )
+        if results and results[0].get("schema"):
+            return json.loads(results[0]["schema"])
+    except Exception as e:
+        logger.warning(f"Could not retrieve API schema: {e}")
+    return {"endpoints": [], "base_port": 4000}

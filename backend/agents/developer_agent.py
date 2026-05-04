@@ -12,9 +12,10 @@ import uuid
 import logging
 from datetime import datetime
 from pathlib import Path
-from llm_client import llm_call, parse_json_response
+from llm_client import llm_call, parse_json_response, set_active_agent
 from graph.neo4j_client import (
-    create_node, link_nodes, get_node, query_graph, upsert_agent, update_agent_profile
+    create_node, link_nodes, get_node, query_graph, upsert_agent, update_agent_profile,
+    get_api_schema
 )
 from memory.context_retriever import ContextRetriever
 
@@ -63,9 +64,13 @@ class DeveloperAgent:
         """
         task_id = task_node["id"]
         logger.info(f"DeveloperAgent processing task: {task_id} — {task_node.get('title')}")
+        set_active_agent(self.AGENT_NAME)
 
         # Fetch full context from Neo4j
         context = self._build_context(task_node)
+
+        # Fetch project-level API schema
+        api_schema = get_api_schema(task_node.get("project_id", ""))
 
         # Get similar past solutions from memory
         similar_examples = self.retriever.get_similar_context(
@@ -73,7 +78,7 @@ class DeveloperAgent:
         )
 
         # Build prompt with context injection
-        messages = self._build_messages(task_node, context, similar_examples)
+        messages = self._build_messages(task_node, context, similar_examples, api_schema)
 
         # Generate code via Gemini
         raw = llm_call("reasoning", messages, json_mode=True)
@@ -102,11 +107,13 @@ class DeveloperAgent:
         """
         task_id = task_node["id"]
         logger.info(f"DeveloperAgent retry (v{version}) for task: {task_id}")
+        set_active_agent(self.AGENT_NAME)
 
         context = self._build_context(task_node)
         similar_examples = self.retriever.get_similar_context(task_node.get("description", ""))
+        api_schema = get_api_schema(task_node.get("project_id", ""))
 
-        messages = self._build_messages(task_node, context, similar_examples)
+        messages = self._build_messages(task_node, context, similar_examples, api_schema)
         # Append the critique as a follow-up
         messages.append({
             "role": "user",
@@ -165,7 +172,7 @@ class DeveloperAgent:
         return {}
 
     def _build_messages(
-        self, task_node: dict, context: dict, similar_examples: list
+        self, task_node: dict, context: dict, similar_examples: list, api_schema: dict = None
     ) -> list[dict]:
         """Construct the full message list for the LLM."""
         user_content = (
@@ -175,12 +182,27 @@ class DeveloperAgent:
         )
 
         if similar_examples:
-            eg = similar_examples[0]  # Only first example to save tokens
+            eg = similar_examples[0]
             user_content += f"\n\nSimilar pattern (use as reference):\n{eg['code'][:200]}"
+
+        # Inject API contract so frontend/backend are always consistent
+        if api_schema and api_schema.get("endpoints"):
+            port = api_schema.get("base_port", 4000)
+            endpoint_lines = "\n".join(
+                f"  {e['method']} {e['path']} — {e.get('description', '')}"
+                for e in api_schema["endpoints"]
+            )
+            user_content += (
+                f"\n\n=== PROJECT API CONTRACT (must follow exactly) ===\n"
+                f"Base URL: http://localhost:{port}/api\n"
+                f"Endpoints:\n{endpoint_lines}\n"
+                f"IMPORTANT: If generating frontend code, call ONLY these endpoints on port {port}.\n"
+                f"If generating backend code, implement ALL of these endpoints."
+            )
 
         return [
             {"role": "system", "content": CODE_GEN_SYSTEM},
-            {"role": "user", "content": user_content},
+            {"role": "user",   "content": user_content},
         ]
 
     def _write_code(self, task_node: dict, result: dict, version: int = 1) -> Path:

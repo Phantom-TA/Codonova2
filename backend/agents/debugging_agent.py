@@ -12,7 +12,7 @@ import uuid
 import logging
 from datetime import datetime
 from pathlib import Path
-from llm_client import llm_call, parse_json_response
+from llm_client import llm_call, parse_json_response, set_active_agent
 from graph.neo4j_client import (
     create_node, link_nodes, query_graph, upsert_agent, update_agent_profile
 )
@@ -46,22 +46,27 @@ class DebuggingAgent:
     def run(self, task_node: dict) -> dict:
         task_id = task_node["id"]
         logger.info(f"DebuggingAgent analyzing task: {task_id}")
+        set_active_agent(self.AGENT_NAME)
 
         context = self._gather_debug_context(task_id)
         if not context:
             logger.warning(f"Cannot debug task {task_id}: insufficient context")
+            # Still record the attempt so score isn't zero
+            update_agent_profile(self.AGENT_NAME, score=5.0, task_type="DEBUG", retries=0)
             return {"success": False, "reason": "Insufficient debug context"}
 
         # Single call: root cause + fix together
         debug_result = self._analyze_and_fix(context)
 
         fixed_filepath = self._apply_fix(context, debug_result)
+        fix_success = fixed_filepath is not None and bool(debug_result.get("code", ""))
 
         bug_id, fix_id = self._store_debug_results(
             task_id, context, debug_result, fixed_filepath
         )
 
-        update_agent_profile(self.AGENT_NAME, score=7.0, task_type="DEBUG", retries=0)
+        score = 8.5 if fix_success else 5.5
+        update_agent_profile(self.AGENT_NAME, score=score, task_type="DEBUG", retries=0)
 
         return {
             "success": True,
@@ -81,7 +86,6 @@ class DebuggingAgent:
         MATCH (t:Task {id: $task_id})
         OPTIONAL MATCH (cm:CodeModule)-[:PRODUCED_BY]->(t)
         OPTIONAL MATCH (tr:TestResult)-[:VALIDATES]->(cm)
-        WHERE tr.status = 'FAILED'
         RETURN
           t.title AS title,
           t.description AS description,

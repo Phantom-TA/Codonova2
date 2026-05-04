@@ -11,7 +11,7 @@ import uuid
 import logging
 from datetime import datetime
 from pathlib import Path
-from llm_client import llm_call, parse_json_response
+from llm_client import llm_call, parse_json_response, set_active_agent
 from graph.neo4j_client import (
     create_node, link_nodes, query_graph, upsert_agent, update_agent_profile
 )
@@ -52,6 +52,7 @@ class EvaluatorAgent:
         """
         task_id = task_node["id"]
         logger.info(f"EvaluatorAgent assessing task: {task_id}")
+        set_active_agent(self.AGENT_NAME)
 
         # Get code module and test results
         context = self._gather_eval_context(task_id)

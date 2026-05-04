@@ -53,6 +53,7 @@ export default function CodeViewer({ projectId }) {
   const [selectedFile, setSelectedFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [showSandbox, setShowSandbox] = useState(false)
 
   useEffect(() => {
     if (!projectId) return
@@ -89,7 +90,54 @@ export default function CodeViewer({ projectId }) {
   }
 
   return (
-    <div className="flex h-full gap-3">
+    <div className="flex flex-col h-full gap-3 relative">
+      {/* Sandbox Modal */}
+      {showSandbox && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-lg animate-fade-in">
+          <div className="bg-[#1e2330] border border-white/10 p-6 rounded-xl max-w-md w-full shadow-2xl relative">
+            <button onClick={() => setShowSandbox(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+            <h3 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">▶ Sandbox Execution</h3>
+            <p className="text-sm text-slate-300 mb-3">Open a terminal and run these commands to start the generated Node.js server:</p>
+
+            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Step 1 — Navigate to project</p>
+            <div className="bg-black/50 p-3 rounded-lg text-xs font-mono text-green-400 mb-3 border border-white/5 select-all">
+{`cd generated_code/${projectId}`}
+            </div>
+
+            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Step 2 — Install dependencies</p>
+            <div className="bg-black/50 p-3 rounded-lg text-xs font-mono text-green-400 mb-3 border border-white/5 select-all">
+{`npm install express cors`}
+            </div>
+
+            <p className="text-xs text-slate-500 mb-1 uppercase tracking-wider">Step 3 — Start server (port 4000)</p>
+            <div className="bg-black/50 p-3 rounded-lg text-xs font-mono text-green-400 mb-4 border border-white/5 select-all">
+{`$env:PORT=4000; node server.js`}
+            </div>
+
+            <p className="text-sm text-slate-300 mb-2">
+              Then open your browser at{' '}
+              <a href="http://localhost:4000" target="_blank" className="text-brand-400 hover:underline">http://localhost:4000</a>
+              <span className="text-slate-500 text-xs ml-2">(Codonova uses 3000)</span>
+            </p>
+            <p className="text-xs text-slate-500">
+              💡 Tip: You can also open <code className="text-slate-300">public/index.html</code> directly in your browser — no server needed for the UI!
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Top Bar for Code Viewer */}
+      <div className="flex justify-end flex-shrink-0">
+        <button 
+          onClick={() => setShowSandbox(true)}
+          className="px-4 py-1.5 bg-green-500/10 hover:bg-green-500/20 text-green-400 border border-green-500/20 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          Run Sandbox
+        </button>
+      </div>
+
+      <div className="flex flex-1 min-h-0 gap-3">
       {/* File Tree */}
       <div className="w-52 flex-shrink-0 overflow-y-auto">
         {loading ? (
@@ -171,6 +219,7 @@ export default function CodeViewer({ projectId }) {
           </div>
         )}
       </div>
+    </div>
     </div>
   )
 }

@@ -14,15 +14,16 @@ import asyncio
 import logging
 from datetime import datetime
 from graph.neo4j_client import (
-    get_pending_tasks, mark_task_status, query_graph
+    get_pending_tasks, mark_task_status, query_graph, block_dependent_tasks
 )
 from agents.correction_engine import CorrectionEngine
 from agents.testing_agent import TestingAgent
 from agents.debugging_agent import DebuggingAgent
+from llm_client import set_active_project
 
 logger = logging.getLogger("scheduler")
 
-POLL_INTERVAL = 10  # seconds
+POLL_INTERVAL = 3  # seconds
 
 
 class Scheduler:
@@ -41,6 +42,7 @@ class Scheduler:
     async def start(self):
         """Start polling loop."""
         self.running = True
+        set_active_project(self.project_id)  # tag all LLM calls with this project
         logger.info(f"Scheduler started for project: {self.project_id}")
 
         while self.running:
@@ -88,6 +90,16 @@ class Scheduler:
 
         # Mark as in-progress
         mark_task_status(task_id, "IN_PROGRESS")
+        
+        if self.ws_broadcaster:
+            import json
+            await self.ws_broadcaster(json.dumps({
+                "event": "task_started",
+                "task_id": task_id,
+                "agent": "Scheduler",
+                "message": f"Starting {task_type} task: {title}",
+                "timestamp": datetime.utcnow().isoformat()
+            }))
 
         try:
             if task_type == "CODE":
@@ -108,21 +120,82 @@ class Scheduler:
             else:
                 logger.warning(f"Unknown task type: {task_type}")
                 mark_task_status(task_id, "FAILED")
+                status = "FAILED"
+
+            if self.ws_broadcaster and task_type != "CODE":
+                import json
+                await self.ws_broadcaster(json.dumps({
+                    "event": "task_done" if status == "DONE" else "task_failed",
+                    "task_id": task_id,
+                    "agent": "Scheduler",
+                    "message": f"Task {title} finished with status {status}",
+                    "timestamp": datetime.utcnow().isoformat()
+                }))
 
         except Exception as e:
             logger.error(f"Task {task_id} failed with exception: {e}", exc_info=True)
             mark_task_status(task_id, "FAILED")
+            
+            # BLOCK DOWNSTREAM TASKS!
+            blocked_ids = block_dependent_tasks(task_id)
+            if self.ws_broadcaster and blocked_ids:
+                import json
+                await self.ws_broadcaster(json.dumps({
+                    "event": "tasks_blocked",
+                    "task_id": task_id,
+                    "agent": "Scheduler",
+                    "message": f"Blocked {len(blocked_ids)} downstream tasks",
+                    "timestamp": datetime.utcnow().isoformat()
+                }))
+            
+            if self.ws_broadcaster:
+                import json
+                await self.ws_broadcaster(json.dumps({
+                    "event": "task_failed",
+                    "task_id": task_id,
+                    "agent": "Scheduler",
+                    "message": f"Task crashed: {str(e)}",
+                    "timestamp": datetime.utcnow().isoformat()
+                }))
 
     async def _is_project_complete(self) -> bool:
-        """Check if all tasks in the project are done or failed."""
-        cypher = """
+        """
+        Check if all tasks in the project have reached a terminal state.
+        Terminal = DONE | FAILED | BLOCKED.
+        Also auto-resolves any stale PENDING tasks whose dependencies are all done.
+        """
+        # First: unlock any PENDING tasks whose dependencies are now all DONE
+        unlock_cypher = """
+        MATCH (p:Project {id: $project_id})-[:HAS_FEATURE]->(:Feature)-[:HAS_TASK]->(t:Task)
+        WHERE t.status = 'PENDING'
+        AND NOT EXISTS {
+            MATCH (t)-[:DEPENDS_ON]->(dep:Task)
+            WHERE dep.status NOT IN ['DONE']
+        }
+        SET t.status = 'PENDING'
+        RETURN count(t) AS unlocked
+        """
+        # Mark truly orphaned PENDING tasks (no deps, no IN_PROGRESS upstream) as FAILED
+        orphan_cypher = """
+        MATCH (p:Project {id: $project_id})-[:HAS_FEATURE]->(:Feature)-[:HAS_TASK]->(t:Task)
+        WHERE t.status = 'PENDING'
+        AND NOT EXISTS {
+            MATCH (t)-[:DEPENDS_ON]->(dep:Task)
+            WHERE dep.status IN ['PENDING', 'IN_PROGRESS']
+        }
+        RETURN count(t) AS orphan_count
+        """
+        orphan_result = query_graph(orphan_cypher, {"project_id": self.project_id})
+        # Only consider complete when no PENDING or IN_PROGRESS tasks remain
+        check_cypher = """
         MATCH (p:Project {id: $project_id})-[:HAS_FEATURE]->(:Feature)-[:HAS_TASK]->(t:Task)
         WHERE t.status IN ['PENDING', 'IN_PROGRESS']
-        RETURN count(t) AS pending_count
+        RETURN count(t) AS active_count
         """
-        result = query_graph(cypher, {"project_id": self.project_id})
-        pending = result[0]["pending_count"] if result else 0
-        return pending == 0
+        result = query_graph(check_cypher, {"project_id": self.project_id})
+        active = result[0]["active_count"] if result else 0
+        return active == 0
+
 
     async def _finalize_project(self):
         """Mark project as complete and create snapshot."""

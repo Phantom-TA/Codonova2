@@ -15,7 +15,9 @@ import time
 import json
 import logging
 import re
+import threading
 from datetime import datetime
+from contextvars import ContextVar
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -32,25 +34,65 @@ logger = logging.getLogger("llm_client")
 
 
 # ─────────────────────────────────────────
+# Project + Agent Context
+# ─────────────────────────────────────────
+_active_project: ContextVar[str] = ContextVar('active_project', default='__global__')
+_active_agent:   ContextVar[str] = ContextVar('active_agent',   default='unknown')
+
+def set_active_project(project_id: str):
+    """Tag all subsequent LLM calls in this context with the given project_id."""
+    _active_project.set(project_id)
+
+def set_active_agent(agent_name: str):
+    """Tag all subsequent LLM calls in this context with the calling agent name."""
+    _active_agent.set(agent_name)
+
+
+# ─────────────────────────────────────────
 # Call Log (in-memory for metrics)
 # ─────────────────────────────────────────
 call_log: list[dict] = []
 
 
-def _log_call(agent_type: str, model: str, latency_ms: float, tokens: int | None, success: bool):
+def _preload_from_neo4j():
+    """On startup, load historical LLM calls from Neo4j into the in-memory log."""
+    try:
+        from graph.neo4j_client import load_llm_call_log
+        historical = load_llm_call_log(limit=2000)
+        if historical:
+            call_log.extend(historical)
+            logger.info(f"Preloaded {len(historical)} LLM call log entries from Neo4j.")
+    except Exception as e:
+        logger.debug(f"Could not preload LLM call log from Neo4j (first start?): {e}")
+
+# Preload in background so it doesn't block startup
+threading.Thread(target=_preload_from_neo4j, daemon=True).start()
+
+
+def _log_call(model_tier: str, model: str, latency_ms: float, tokens: int | None, success: bool):
     entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "agent_type": agent_type,
-        "model": model,
-        "latency_ms": round(latency_ms, 2),
+        "timestamp":   datetime.utcnow().isoformat(),
+        "agent_type":  _active_agent.get(),   # named agent: PlanningAgent, DeveloperAgent...
+        "model_tier":  model_tier,             # 'reasoning' or 'fast'
+        "model":       model,
+        "latency_ms":  round(latency_ms, 2),
         "tokens_used": tokens,
-        "success": success,
+        "success":     success,
+        "project_id":  _active_project.get(),
     }
     call_log.append(entry)
     logger.info(
-        f"LLM call | agent={agent_type} model={model} "
+        f"LLM call | agent={_active_agent.get()} tier={model_tier} model={model} "
         f"latency={latency_ms:.0f}ms tokens={tokens} success={success}"
     )
+    # Persist to Neo4j in background thread (non-blocking)
+    def _persist():
+        try:
+            from graph.neo4j_client import persist_llm_call
+            persist_llm_call(entry)
+        except Exception:
+            pass
+    threading.Thread(target=_persist, daemon=True).start()
 
 
 def get_call_log() -> list[dict]:
@@ -126,7 +168,7 @@ def llm_call(
     messages: list[dict],
     json_mode: bool = True,
     temperature: float = 0.3,
-    max_tokens: int = 4096,
+    max_tokens: int = 8192,
 ) -> str:
     """
     Unified LLM call with automatic fallback to OpenRouter if rate limited.
@@ -144,11 +186,12 @@ def llm_call(
     start_time = time.time()
     key_offset = 0
 
-    # Determine total available keys to bound the retry loop
+    # Determine total available keys for the primary provider (no fixed limit)
     provider_env = "REASONING_LLM_PROVIDER" if agent_type == "reasoning" else "FAST_LLM_PROVIDER"
     provider = os.getenv(provider_env, "gemini").lower()
     keys_str = os.getenv(f"{provider.upper()}_API_KEY", "")
-    key_count = max(1, len([k.strip(' "\'') for k in keys_str.split(",") if k.strip(' "\'')]))
+    primary_keys = [k.strip(' "\'') for k in keys_str.split(",") if k.strip(' "\'')]
+    key_count = max(1, len(primary_keys))
 
     for attempt in range(key_count):
         client, model = get_client(agent_type, key_offset)
@@ -159,28 +202,31 @@ def llm_call(
             latency_ms = (time.time() - start_time) * 1000
             tokens = getattr(response.usage, "total_tokens", None)
             _log_call(agent_type, model, latency_ms, tokens, success=True)
-            
-            # If we offset successfully, update the global index implicitly for future calls
+
             global gemini_key_index, groq_key_index
             if provider == "gemini" and key_offset > 0:
                 gemini_key_index += key_offset
             elif provider == "groq" and key_offset > 0:
                 groq_key_index += key_offset
-                
+
             return response.choices[0].message.content
 
         except Exception as e:
-            # Enhanced error body logging
             error_details = getattr(e, "body", None)
             if error_details:
                 logger.error(f"LLM API Error Body: {error_details}")
 
             error_str = str(e).lower()
-            is_rate_limit = "rate" in error_str or "429" in error_str or "quota" in error_str or "resource exhausted" in error_str or "403" in error_str or "permission_denied" in error_str
+            is_retryable = (
+                "rate" in error_str or "429" in error_str or
+                "quota" in error_str or "resource exhausted" in error_str or
+                "403" in error_str or "permission_denied" in error_str or
+                "503" in error_str or "500" in error_str or "overloaded" in error_str
+            )
 
-            if is_rate_limit:
+            if is_retryable:
                 logger.warning(
-                    f"Rate limit / Quota hit for {model} (attempt {attempt + 1}/{key_count}). "
+                    f"Retryable error hit for {model} (attempt {attempt + 1}/{key_count}). "
                     f"Rotating to next API key..."
                 )
                 key_offset += 1
@@ -275,23 +321,24 @@ def parse_json_response(raw: str) -> dict:
     try:
         return json.loads(json_str, strict=False)
     except json.JSONDecodeError as e:
-        # If it still fails, try closing any open brackets/braces
-        error_msg = str(e).lower()
-        if any(fix in error_msg for fix in ["expecting property name", "extra data", "delimiter", "expecting object", "double quotes"]):
-             try:
-                 # Attempt to strip a trailing comma and close
-                 return json.loads(json_str.strip().rstrip(',').rstrip() + "}", strict=False)
-             except: pass
-             
-             try:
-                 # Attempt to close a list and then the object
-                 return json.loads(json_str.strip().rstrip(',').rstrip() + "]}", strict=False)
-             except: pass
-             
-             try:
-                 # Attempt to close a string and then the object (most common code truncation)
-                 return json.loads(json_str.strip().rstrip(',').rstrip() + '"\n}', strict=False)
-             except: pass
+        # If the LLM truncated the response, our rfind('}') might have grabbed a '}'
+        # from inside the code string instead of the actual JSON closing brace.
+        # We try repairing both json_str and the raw content from start.
+        raw_frag = content[start:]
+        fixes = [
+            json_str.strip().rstrip(',').rstrip() + "}",
+            json_str.strip().rstrip(',').rstrip() + "]}",
+            json_str.strip().rstrip(',').rstrip() + '"\n}',
+            raw_frag.strip().rstrip(',').rstrip() + "}",
+            raw_frag.strip().rstrip(',').rstrip() + "]}",
+            raw_frag.strip().rstrip(',').rstrip() + '"\n}',
+        ]
+        
+        for fix in fixes:
+            try:
+                return json.loads(fix, strict=False)
+            except:
+                pass
         
         logger.error(f"JSON parse failed after repair attempt: {e}\nRaw snippet: {json_str[:500]}")
         raise ValueError(f"Failed to parse LLM JSON response: {e}") from e
